@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recon Tool</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</head>
+<body>
+    <h1>Reconnaissance Tool</h1>
+    <form id="reconForm">
+        <label for="target_domain">Enter the target domain:</label><br>
+        <input type="text" id="target_domain" name="target_domain" required><br><br>
+        <input type="submit" value="Start Reconnaissance">
+    </form>
+    <div id="results"></div>
+
+    <script>
+        const socket = io();
+
+        document.getElementById('reconForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            const targetDomain = document.getElementById('target_domain').value;
+
+            // Emit the start_recon event with the target domain
+            socket.emit('start_recon', {'target_domain': targetDomain});
+        });
+
+        socket.on('tool_result', function(data) {
+            const resultDiv = document.getElementById('results');
+            const toolResult = document.createElement('div');
+            toolResult.innerHTML = `<h2>${data.tool}</h2><pre>${data.result}</pre>`;
+            resultDiv.appendChild(toolResult);
+        });
+    </script>
+</body>
+</html>
