@@ -1,21 +1,10 @@
-
 <!-- templates/index.html -->
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BBHunter - Bug Bounty Hunter</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-</head>
-<body>
 {% extends "base.html" %}
 
 {% block content %}
 <div class="container">
     <h1 class="mt-5">BBHunter - Bug Bounty Hunter</h1>
-    <p>Welcome, {{ current_user.username }}! <a href="{{ url_for('logout') }}">Logout</a> | <a href="{{ url_for('profile') }}">Profile</a></p>
+    <p>Welcome, {{ current_user.username }}! <a href="{{ url_for('logout') }}">Logout</a> | <a href="{{ url_for('profile') }}">Profile</a> | <a href="{{ url_for('dashboard') }}">Dashboard</a></p>
 
     <form id="reconForm" class="mt-4">
         <div class="mb-3">
@@ -52,16 +41,24 @@
         {% endif %}
     </div>
 
+    <!-- Modal to display scan result -->
+    <div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="resultModalLabel">Scan Result</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="modalBody">
+            <!-- Result will be loaded here -->
+          </div>
+        </div>
+      </div>
+    </div>
 
-    <h1>Reconnaissance Tool</h1>
-    <form id="reconForm">
-        <label for="target_domain">Enter the target domain:</label><br>
-        <input type="text" id="target_domain" name="target_domain" required><br><br>
-        <input type="submit" value="Start Reconnaissance">
-    </form>
-    <div id="results"></div>
+</div>
 
-    <script>
+<script>
     const socket = io();
 
     document.getElementById('reconForm').addEventListener('submit', function(event) {
@@ -72,16 +69,31 @@
             selectedTools.push(el.value);
         });
 
-            socket.emit('start_recon', {'target_domain': targetDomain});
-        });
+        // Emit the start_recon event with the target domain and selected tools
+        socket.emit('start_recon', {'target_domain': targetDomain, 'selected_tools': selectedTools});
+    });
 
-        socket.on('tool_result', function(data) {
-            const resultDiv = document.getElementById('results');
-            const toolResult = document.createElement('div');
-            toolResult.innerHTML = `<h2>${data.tool}</h2><pre>${data.result}</pre>`;
-            resultDiv.appendChild(toolResult);
+    socket.on('tool_result', function(data) {
+        const resultDiv = document.getElementById('results');
+        const toolResult = document.createElement('div');
+        toolResult.innerHTML = `<h3>${data.tool}</h3><p>${data.message}</p><pre>${data.result}</pre>`;
+        resultDiv.appendChild(toolResult);
+    });
+
+    // Handle view result clicks
+    $(document).on('click', '.view-result', function(event) {
+        event.preventDefault();
+        const scanId = $(this).data('scan-id');
+
+        $.ajax({
+            url: "{{ url_for('get_scan_result') }}",
+            method: 'GET',
+            data: { 'scan_id': scanId },
+            success: function(response) {
+                $('#modalBody').html('<pre>' + response.result + '</pre>');
+                $('#resultModal').modal('show');
+            }
         });
-    </script>
+    });
+</script>
 {% endblock %}
-</body>
-</html>
