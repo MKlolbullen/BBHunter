@@ -1,5 +1,4 @@
 
-
 🕵️‍♂️ <b> BBHunter - Bug Bounty Hunter Automation Tool </b>
 
 BBHunter is a comprehensive web-based application designed for penetration testers, bug bounty hunters, and cybersecurity researchers. It automates reconnaissance and information gathering using a combination of popular tools, providing real-time results, analytics, and detailed reports.
@@ -70,30 +69,31 @@ Node.js (for Socket.IO)
 
 External tools like assetfinder, subfinder, amass, httpx, etc.
 
+---
 
 1. Clone the Repository
 
-git clone https://github.com/yourusername/bbhunter.git
-cd bbhunter
+`git clone https://github.com/yourusername/bbhunter.git
+cd bbhunter`
 
 2. Install Python Dependencies
 
 Make sure you have pip installed:
 
-pip install -r requirements.txt
+`pip install -r requirements.txt`
 
 3. Install and Start Redis
 
 On Ubuntu/Debian:
 
-sudo apt update
+`sudo apt update
 sudo apt install redis-server
-sudo systemctl start redis-server
+sudo systemctl start redis-server`
 
 On macOS:
 
-brew install redis
-redis-server
+`brew install redis
+redis-server`
 
 4. Install External Tools
 
@@ -101,17 +101,17 @@ Ensure you have the required tools installed and accessible in your PATH. Update
 
 5. Initialize the Database
 
-python app.py
+`python app.py`
 
 This will create the SQLite database and the necessary tables.
 
 6. Start the Celery Worker
 
-celery -A tasks.celery worker --loglevel=info
+`celery -A tasks.celery worker --loglevel=info`
 
 7. Run the Flask Application
 
-python app.py
+`python app.py`
 
 Navigate to http://localhost:5000 in your browser.
 
