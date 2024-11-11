@@ -54,11 +54,16 @@ def run_tool_task(tool, target, user_id, scan_id):
         elif tool == "katana":
             cmd = f"{Config.TOOL_PATHS['katana']} -u {target} -o {output_file}"
         elif tool == "gau":
-            cmd = f"{Config.TOOL_PATHS['gau']} {target} > {output_file}"
+            cmd = f"{Config.TOOL_PATHS['gau']} {target}"
         elif tool == "gospider":
             cmd = f"{Config.TOOL_PATHS['gospider']} -s {target} -o {Config.OUTPUT_DIR}"
         elif tool == "nuclei":
             cmd = f"{Config.TOOL_PATHS['nuclei']} -target {target} -t /path/to/nuclei-templates/ -o {output_file}"  # Adjust the path to your templates
+        elif tool == "waybackurls":
+            cmd = f"echo {target} | {Config.TOOL_PATHS['waybackurls']} > {output_file}"
+        elif tool == "ffuf":
+            wordlist = "/usr/share/wordlists/dirb/common.txt"  # Adjust path to your wordlist
+            cmd = f"{Config.TOOL_PATHS['ffuf']} -u http://{target}/FUZZ -w {wordlist} -o {output_file}"
         else:
             cmd = f"{tool} {target}"
 
