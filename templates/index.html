@@ -1,3 +1,5 @@
+
+<!-- templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,6 +10,49 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 </head>
 <body>
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mt-5">BBHunter - Bug Bounty Hunter</h1>
+    <p>Welcome, {{ current_user.username }}! <a href="{{ url_for('logout') }}">Logout</a> | <a href="{{ url_for('profile') }}">Profile</a></p>
+
+    <form id="reconForm" class="mt-4">
+        <div class="mb-3">
+            <label for="target_domain" class="form-label">Enter the target domain:</label>
+            <input type="text" id="target_domain" name="target_domain" required class="form-control">
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Select Tools to Run:</label><br>
+            {% for tool in ['assetfinder', 'subfinder', 'amass', 'httpx', 'dnsx', 'katana', 'gau', 'gospider', 'nuclei', 'waybackurls', 'ffuf'] %}
+                <div class="form-check form-check-inline">
+                    <input class="form-check-input" type="checkbox" name="tools" value="{{ tool }}" id="{{ tool }}">
+                    <label class="form-check-label" for="{{ tool }}">{{ tool }}</label>
+                </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-success">Start Reconnaissance</button>
+    </form>
+
+    <div id="results" class="mt-5">
+        <h2>Scan Results</h2>
+        {% if scans %}
+            <ul class="list-group">
+            {% for scan in scans %}
+                <li class="list-group-item">
+                    <strong>{{ scan.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</strong> - {{ scan.tool }} on {{ scan.domain }}
+                    <br>
+                    <a href="#" class="view-result" data-scan-id="{{ scan.id }}">View Result</a> |
+                    <a href="{{ url_for('download_report', scan_id=scan.id) }}">Download Report</a>
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p>No scans yet.</p>
+        {% endif %}
+    </div>
+
+
     <h1>Reconnaissance Tool</h1>
     <form id="reconForm">
         <label for="target_domain">Enter the target domain:</label><br>
@@ -17,13 +62,16 @@
     <div id="results"></div>
 
     <script>
-        const socket = io();
+    const socket = io();
 
-        document.getElementById('reconForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            const targetDomain = document.getElementById('target_domain').value;
+    document.getElementById('reconForm').addEventListener('submit', function(event) {
+        event.preventDefault();
+        const targetDomain = document.getElementById('target_domain').value;
+        const selectedTools = [];
+        document.querySelectorAll('input[name="tools"]:checked').forEach(function(el) {
+            selectedTools.push(el.value);
+        });
 
-            // Emit the start_recon event with the target domain
             socket.emit('start_recon', {'target_domain': targetDomain});
         });
 
@@ -34,5 +82,6 @@
             resultDiv.appendChild(toolResult);
         });
     </script>
+{% endblock %}
 </body>
 </html>
