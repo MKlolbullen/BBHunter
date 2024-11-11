@@ -13,6 +13,10 @@ import re
 import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 from io import BytesIO
+import pandas as pd
+import matplotlib.pyplot as plt
+from datetime import datetime
+import base64
 
 socketio = SocketIO()
 
@@ -85,6 +89,41 @@ def create_app():
             form.email.data = current_user.email
         return render_template('profile.html', form=form)
 
+    @app.route('/dashboard')
+    @login_required
+    def dashboard():
+        scans = ScanResult.query.filter_by(user_id=current_user.id).all()
+        scan_counts = {}
+        for scan in scans:
+            date = scan.timestamp.strftime('%Y-%m-%d')
+            scan_counts[date] = scan_counts.get(date, 0) + 1
+
+        # Prepare data for charts
+        dates = list(scan_counts.keys())
+        counts = list(scan_counts.values())
+
+        # Encode data for charts
+        chart_data = {
+            'dates': dates,
+            'counts': counts,
+        }
+
+        # Tool usage
+        tool_counts = {}
+        for scan in scans:
+            tool = scan.tool
+            tool_counts[tool] = tool_counts.get(tool, 0) + 1
+
+        tools = list(tool_counts.keys())
+        tool_usage = list(tool_counts.values())
+
+        tool_data = {
+            'tools': tools,
+            'usage': tool_usage,
+        }
+
+        return render_template('dashboard.html', chart_data=chart_data, tool_data=tool_data)
+
     # Function to validate domain names
     def is_valid_domain(domain):
         regex = r'^(?:(?:[a-zA-Z0-9\-]{1,63}\.)+(?:[a-zA-Z]{2,63}))$'
@@ -107,9 +146,13 @@ def create_app():
     def download_report(scan_id):
         scan = ScanResult.query.filter_by(id=scan_id, user_id=current_user.id).first()
         if scan:
-            return send_file(BytesIO(scan.result.encode('utf-8')),
-                             attachment_filename=f'{scan.domain}_{scan.tool}_report.txt',
-                             as_attachment=True)
+            # Generate HTML report
+            report_html = render_template('report.html', scan=scan)
+            # Save report to file
+            report_file = os.path.join(Config.REPORTS_DIR, f'{scan.domain}_{scan.tool}_report_{scan.id}.html')
+            with open(report_file, 'w') as f:
+                f.write(report_html)
+            return send_file(report_file, as_attachment=True)
         else:
             return redirect(url_for('home'))
 
@@ -118,7 +161,7 @@ def create_app():
     @login_required
     def start_recon(data):
         target_domain = data['target_domain']
-        selected_tools = data.get('selected_tools', [])  # Get selected tools from the client
+        selected_tools = data.get('selected_tools', [])
         scan_id = str(uuid.uuid4())
 
         if not is_valid_domain(target_domain):
