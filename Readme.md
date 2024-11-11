@@ -1,5 +1,4 @@
 
-
 ---
 
 🕵️‍♂️ <b> BBHunter - Bug Bounty Hunter Automation Tool </b>
