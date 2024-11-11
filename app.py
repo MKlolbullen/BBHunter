@@ -1,15 +1,18 @@
 # app.py
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 from flask_socketio import SocketIO, emit, join_room
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
+from flask_restful import Api, Resource
 from config import Config
 from models import db, User, ScanResult
 from tasks import run_tool_task
+from forms import RegistrationForm, LoginForm, UpdateProfileForm
 import os
 import re
 import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
+from io import BytesIO
 
 socketio = SocketIO()
 
@@ -18,6 +21,7 @@ def create_app():
     app.config.from_object(Config)
     db.init_app(app)
     socketio.init_app(app, message_queue=Config.CELERY_BROKER_URL, async_mode='eventlet')
+    api = Api(app)
 
     # User authentication setup
     login_manager = LoginManager()
@@ -31,25 +35,31 @@ def create_app():
     # Create database tables if they don't exist
     with app.app_context():
         db.create_all()
-        # Create an admin user if none exists
-        if not User.query.filter_by(username='admin').first():
-            admin_user = User(username='admin', password=generate_password_hash('password'))
-            db.session.add(admin_user)
-            db.session.commit()
 
     # Routes
+    @app.route('/register', methods=['GET', 'POST'])
+    def register():
+        form = RegistrationForm()
+        if form.validate_on_submit():
+            hashed_password = generate_password_hash(form.password.data)
+            user = User(username=form.username.data, email=form.email.data, password=hashed_password)
+            db.session.add(user)
+            db.session.commit()
+            login_user(user)
+            return redirect(url_for('home'))
+        return render_template('register.html', form=form)
+
     @app.route('/login', methods=['GET', 'POST'])
     def login():
-        if request.method == 'POST':
-            username = request.form['username']
-            password = request.form['password']
-            user = User.query.filter_by(username=username).first()
-            if user and check_password_hash(user.password, password):
-                login_user(user)
+        form = LoginForm()
+        if form.validate_on_submit():
+            user = User.query.filter_by(username=form.username.data).first()
+            if user and check_password_hash(user.password, form.password.data):
+                login_user(user, remember=form.remember.data)
                 return redirect(url_for('home'))
             else:
-                return render_template('login.html', error='Invalid credentials')
-        return render_template('login.html')
+                form.password.errors.append('Invalid username or password')
+        return render_template('login.html', form=form)
 
     @app.route('/logout')
     @login_required
@@ -62,6 +72,18 @@ def create_app():
     def home():
         scans = ScanResult.query.filter_by(user_id=current_user.id).order_by(ScanResult.timestamp.desc()).all()
         return render_template('index.html', scans=scans)
+
+    @app.route('/profile', methods=['GET', 'POST'])
+    @login_required
+    def profile():
+        form = UpdateProfileForm()
+        if form.validate_on_submit():
+            current_user.email = form.email.data
+            db.session.commit()
+            return redirect(url_for('profile'))
+        elif request.method == 'GET':
+            form.email.data = current_user.email
+        return render_template('profile.html', form=form)
 
     # Function to validate domain names
     def is_valid_domain(domain):
@@ -79,11 +101,24 @@ def create_app():
         else:
             return {'result': 'No result found.'}
 
+    # Route to download report
+    @app.route('/download_report/<int:scan_id>')
+    @login_required
+    def download_report(scan_id):
+        scan = ScanResult.query.filter_by(id=scan_id, user_id=current_user.id).first()
+        if scan:
+            return send_file(BytesIO(scan.result.encode('utf-8')),
+                             attachment_filename=f'{scan.domain}_{scan.tool}_report.txt',
+                             as_attachment=True)
+        else:
+            return redirect(url_for('home'))
+
     # SocketIO event for starting reconnaissance
     @socketio.on('start_recon')
     @login_required
     def start_recon(data):
         target_domain = data['target_domain']
+        selected_tools = data.get('selected_tools', [])  # Get selected tools from the client
         scan_id = str(uuid.uuid4())
 
         if not is_valid_domain(target_domain):
@@ -94,18 +129,23 @@ def create_app():
         scan_output_dir = os.path.join(Config.OUTPUT_DIR, scan_id)
         os.makedirs(scan_output_dir, exist_ok=True)
 
-        # List of tools to run
-        tools = [
-            "assetfinder",
-            "subfinder",
-            "amass",
-            "httpx",
-            "dnsx",
-            "katana",
-            "gau",
-            "gospider",
-            "nuclei"
-        ]
+        # Default to all tools if none are selected
+        if not selected_tools:
+            tools = [
+                "assetfinder",
+                "subfinder",
+                "amass",
+                "httpx",
+                "dnsx",
+                "katana",
+                "gau",
+                "gospider",
+                "nuclei",
+                "waybackurls",
+                "ffuf"
+            ]
+        else:
+            tools = selected_tools
 
         # Emit a message that the scan has started
         emit('tool_result', {'tool': 'Scan', 'result': '', 'message': f'Starting reconnaissance on {target_domain}', 'scan_id': scan_id})
@@ -116,6 +156,58 @@ def create_app():
         # Run each tool as a Celery task
         for tool_name in tools:
             run_tool_task.apply_async(args=[tool_name, target_domain, current_user.id, scan_id])
+
+    # API Endpoints
+    class ScanAPI(Resource):
+        @login_required
+        def get(self, scan_id):
+            scan = ScanResult.query.filter_by(id=scan_id, user_id=current_user.id).first()
+            if scan:
+                return {'id': scan.id, 'domain': scan.domain, 'tool': scan.tool, 'result': scan.result}
+            else:
+                return {'message': 'Scan not found'}, 404
+
+    class StartScanAPI(Resource):
+        @login_required
+        def post(self):
+            data = request.get_json()
+            target_domain = data.get('target_domain')
+            selected_tools = data.get('selected_tools', [])
+            scan_id = str(uuid.uuid4())
+
+            if not is_valid_domain(target_domain):
+                return {'message': 'Invalid domain format.'}, 400
+
+            # Create a unique directory for the scan results
+            scan_output_dir = os.path.join(Config.OUTPUT_DIR, scan_id)
+            os.makedirs(scan_output_dir, exist_ok=True)
+
+            # Default to all tools if none are selected
+            if not selected_tools:
+                tools = [
+                    "assetfinder",
+                    "subfinder",
+                    "amass",
+                    "httpx",
+                    "dnsx",
+                    "katana",
+                    "gau",
+                    "gospider",
+                    "nuclei",
+                    "waybackurls",
+                    "ffuf"
+                ]
+            else:
+                tools = selected_tools
+
+            # Run each tool as a Celery task
+            for tool_name in tools:
+                run_tool_task.apply_async(args=[tool_name, target_domain, current_user.id, scan_id])
+
+            return {'message': 'Scan started', 'scan_id': scan_id}, 202
+
+    api.add_resource(ScanAPI, '/api/scan/<int:scan_id>')
+    api.add_resource(StartScanAPI, '/api/start_scan')
 
     return app
 
