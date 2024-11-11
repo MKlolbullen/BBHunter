@@ -2,7 +2,13 @@ Flask
 Flask-Login
 Flask-SocketIO
 Flask-SQLAlchemy
+Flask-WTF
+Flask-RESTful
 eventlet
 celery
 redis
 werkzeug
+itsdangerous
+pandas
+matplotlib
+Jinja2
