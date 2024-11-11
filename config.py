@@ -4,12 +4,13 @@ import os
 
 class Config:
     SECRET_KEY = 'your_secret_key_here'
-    SECURITY_PASSWORD_SALT = 'your_password_salt_here'  # For password reset tokens
+    SECURITY_PASSWORD_SALT = 'your_password_salt_here'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     OUTPUT_DIR = os.path.join(BASE_DIR, 'scan_results')
+    REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
 
     # Paths to the external tools
     TOOL_PATHS = {
@@ -22,7 +23,6 @@ class Config:
         'dnsx': '/usr/local/bin/dnsx',
         'amass': '/usr/bin/amass',
         'nuclei': '/usr/local/bin/nuclei',
-        # Add paths for additional tools
         'waybackurls': '/usr/local/bin/waybackurls',
         'ffuf': '/usr/local/bin/ffuf',
     }
