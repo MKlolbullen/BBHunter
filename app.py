@@ -1,5 +1,3 @@
-# app.py
-
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file
 from flask_socketio import SocketIO, emit, join_room
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
@@ -97,31 +95,25 @@ def create_app():
         for scan in scans:
             date = scan.timestamp.strftime('%Y-%m-%d')
             scan_counts[date] = scan_counts.get(date, 0) + 1
-
         # Prepare data for charts
         dates = list(scan_counts.keys())
         counts = list(scan_counts.values())
-
         # Encode data for charts
         chart_data = {
             'dates': dates,
             'counts': counts,
         }
-
         # Tool usage
         tool_counts = {}
         for scan in scans:
             tool = scan.tool
             tool_counts[tool] = tool_counts.get(tool, 0) + 1
-
         tools = list(tool_counts.keys())
         tool_usage = list(tool_counts.values())
-
         tool_data = {
             'tools': tools,
             'usage': tool_usage,
         }
-
         return render_template('dashboard.html', chart_data=chart_data, tool_data=tool_data)
 
     # Function to validate domain names
@@ -134,17 +126,17 @@ def create_app():
     @login_required
     def get_scan_result():
         scan_id = request.args.get('scan_id')
-        scan = ScanResult.query.filter_by(id=scan_id, user_id=current_user.id).first()
+        scan = ScanResult.query.filter_by(scan_id=scan_id, user_id=current_user.id).first()
         if scan:
             return {'result': scan.result}
         else:
             return {'result': 'No result found.'}
 
     # Route to download report
-    @app.route('/download_report/<int:scan_id>')
+    @app.route('/download_report/<scan_id>')
     @login_required
     def download_report(scan_id):
-        scan = ScanResult.query.filter_by(id=scan_id, user_id=current_user.id).first()
+        scan = ScanResult.query.filter_by(scan_id=scan_id, user_id=current_user.id).first()
         if scan:
             # Generate HTML report
             report_html = render_template('report.html', scan=scan)
@@ -163,15 +155,12 @@ def create_app():
         target_domain = data['target_domain']
         selected_tools = data.get('selected_tools', [])
         scan_id = str(uuid.uuid4())
-
         if not is_valid_domain(target_domain):
             emit('tool_result', {'tool': 'Validation', 'result': '', 'message': 'Invalid domain format.', 'scan_id': scan_id})
             return
-
         # Create a unique directory for the scan results
         scan_output_dir = os.path.join(Config.OUTPUT_DIR, scan_id)
         os.makedirs(scan_output_dir, exist_ok=True)
-
         # Default to all tools if none are selected
         if not selected_tools:
             tools = [
@@ -189,13 +178,10 @@ def create_app():
             ]
         else:
             tools = selected_tools
-
         # Emit a message that the scan has started
         emit('tool_result', {'tool': 'Scan', 'result': '', 'message': f'Starting reconnaissance on {target_domain}', 'scan_id': scan_id})
-
         # Join the room for this scan
         join_room(scan_id)
-
         # Run each tool as a Celery task
         for tool_name in tools:
             run_tool_task.apply_async(args=[tool_name, target_domain, current_user.id, scan_id])
@@ -204,7 +190,7 @@ def create_app():
     class ScanAPI(Resource):
         @login_required
         def get(self, scan_id):
-            scan = ScanResult.query.filter_by(id=scan_id, user_id=current_user.id).first()
+            scan = ScanResult.query.filter_by(scan_id=scan_id, user_id=current_user.id).first()
             if scan:
                 return {'id': scan.id, 'domain': scan.domain, 'tool': scan.tool, 'result': scan.result}
             else:
@@ -217,14 +203,11 @@ def create_app():
             target_domain = data.get('target_domain')
             selected_tools = data.get('selected_tools', [])
             scan_id = str(uuid.uuid4())
-
             if not is_valid_domain(target_domain):
                 return {'message': 'Invalid domain format.'}, 400
-
             # Create a unique directory for the scan results
             scan_output_dir = os.path.join(Config.OUTPUT_DIR, scan_id)
             os.makedirs(scan_output_dir, exist_ok=True)
-
             # Default to all tools if none are selected
             if not selected_tools:
                 tools = [
@@ -242,14 +225,12 @@ def create_app():
                 ]
             else:
                 tools = selected_tools
-
             # Run each tool as a Celery task
             for tool_name in tools:
                 run_tool_task.apply_async(args=[tool_name, target_domain, current_user.id, scan_id])
-
             return {'message': 'Scan started', 'scan_id': scan_id}, 202
 
-    api.add_resource(ScanAPI, '/api/scan/<int:scan_id>')
+    api.add_resource(ScanAPI, '/api/scan/<scan_id>')
     api.add_resource(StartScanAPI, '/api/start_scan')
 
     return app
