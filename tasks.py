@@ -1,5 +1,3 @@
-# tasks.py
-
 from celery import Celery
 from config import Config
 import subprocess
@@ -9,6 +7,15 @@ from models import db, ScanResult
 import uuid
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 def make_celery(app):
     celery = Celery(app.import_name, broker=Config.CELERY_BROKER_URL)
@@ -33,10 +40,8 @@ celery = make_celery(app)
 @celery.task()
 def run_tool_task(tool, target, user_id, scan_id):
     output_file = os.path.join(Config.OUTPUT_DIR, scan_id, f"{target}_{tool}_results.txt")
-
     if not os.path.exists(os.path.dirname(output_file)):
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
-
     try:
         # Prepare the command based on the tool
         if tool == "assetfinder":
@@ -58,29 +63,29 @@ def run_tool_task(tool, target, user_id, scan_id):
         elif tool == "gospider":
             cmd = f"{Config.TOOL_PATHS['gospider']} -s {target} -o {Config.OUTPUT_DIR}"
         elif tool == "nuclei":
-            cmd = f"{Config.TOOL_PATHS['nuclei']} -target {target} -t /path/to/nuclei-templates/ -o {output_file}"  # Adjust the path to your templates
+            cmd = f"{Config.TOOL_PATHS['nuclei']} -target {target} -t /path/to/nuclei-templates/ -o {output_file}"
         elif tool == "waybackurls":
             cmd = f"echo {target} | {Config.TOOL_PATHS['waybackurls']} > {output_file}"
         elif tool == "ffuf":
-            wordlist = "/usr/share/wordlists/dirb/common.txt"  # Adjust path to your wordlist
+            wordlist = "/usr/share/wordlists/dirb/common.txt"
             cmd = f"{Config.TOOL_PATHS['ffuf']} -u http://{target}/FUZZ -w {wordlist} -o {output_file}"
         else:
             cmd = f"{tool} {target}"
-
+        
         # Run the command and capture output
         process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         stdout, stderr = process.communicate()
-
         if process.returncode == 0:
             result = stdout.strip()
             message = f"Completed {tool} on {target}"
-            # Save output to file
-            with open(output_file, 'w') as f:
-                f.write(result)
         else:
             result = stderr.strip()
             message = f"Error running {tool} on {target}"
-
+        
+        # Save output to file
+        with open(output_file, 'w') as f:
+            f.write(result)
+        
         # Save result to database
         scan_result = ScanResult(
             user_id=user_id,
@@ -91,10 +96,10 @@ def run_tool_task(tool, target, user_id, scan_id):
         )
         db.session.add(scan_result)
         db.session.commit()
-
+        logger.info(f"{tool} completed on {target}.")
         # Emit result to the client
         socketio.emit('tool_result', {'tool': tool, 'result': result, 'message': message, 'scan_id': scan_id}, room=scan_id)
-
     except Exception as e:
         error_message = f"Exception running {tool} on {target}: {str(e)}"
+        logger.error(error_message)
         socketio.emit('tool_result', {'tool': tool, 'result': '', 'message': error_message, 'scan_id': scan_id}, room=scan_id)
