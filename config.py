@@ -1,39 +1,25 @@
-# config.py
-
 import os
 
 class Config:
-    SECRET_KEY = 'your_secret_key_here'
-    SECURITY_PASSWORD_SALT = 'your_password_salt_here'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///database.db'
+    SECRET_KEY = os.environ.get("SECRET_KEY") or "your-secret-key"
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URI") or "sqlite:///bbhunter.db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    OUTPUT_DIR = os.path.join(BASE_DIR, 'scan_results')
-    REPORTS_DIR = os.path.join(BASE_DIR, 'reports')
-
-    # Paths to the external tools
+    CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL") or "redis://localhost:6379/0"
+    CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND") or "redis://localhost:6379/0"
+    # Directories for tool output and reports
+    OUTPUT_DIR = os.environ.get("OUTPUT_DIR") or os.path.join(os.getcwd(), "output")
+    REPORTS_DIR = os.environ.get("REPORTS_DIR") or os.path.join(os.getcwd(), "reports")
+    # Paths to external tools (adjust as needed)
     TOOL_PATHS = {
-        'httpx': '/usr/local/bin/httpx',
-        'katana': '/usr/local/bin/katana',
-        'gospider': '/usr/local/bin/gospider',
-        'gau': '/usr/local/bin/gau',
-        'assetfinder': '/usr/local/bin/assetfinder',
-        'subfinder': '/usr/local/bin/subfinder',
-        'dnsx': '/usr/local/bin/dnsx',
-        'amass': '/usr/bin/amass',
-        'nuclei': '/usr/local/bin/nuclei',
-        'waybackurls': '/usr/local/bin/waybackurls',
-        'ffuf': '/usr/local/bin/ffuf',
+        "assetfinder": os.environ.get("ASSETFINDER_PATH") or "/usr/local/bin/assetfinder",
+        "subfinder": os.environ.get("SUBFINDER_PATH") or "/usr/local/bin/subfinder",
+        "amass": os.environ.get("AMASS_PATH") or "/usr/local/bin/amass",
+        "httpx": os.environ.get("HTTPX_PATH") or "/usr/local/bin/httpx",
+        "dnsx": os.environ.get("DNSX_PATH") or "/usr/local/bin/dnsx",
+        "katana": os.environ.get("KATANA_PATH") or "/usr/local/bin/katana",
+        "gau": os.environ.get("GAU_PATH") or "/usr/local/bin/gau",
+        "gospider": os.environ.get("GOSPIDER_PATH") or "/usr/local/bin/gospider",
+        "nuclei": os.environ.get("NUCLEI_PATH") or "/usr/local/bin/nuclei",
+        "waybackurls": os.environ.get("WAYBACKURLS_PATH") or "/usr/local/bin/waybackurls",
+        "ffuf": os.environ.get("FFUF_PATH") or "/usr/local/bin/ffuf",
     }
-
-    # Celery configuration
-    CELERY_BROKER_URL = 'redis://localhost:6379/0'
-    CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-
-    # Flask-Mail configuration (for password resets)
-    MAIL_SERVER = 'smtp.example.com'
-    MAIL_PORT = 587
-    MAIL_USE_TLS = True
-    MAIL_USERNAME = 'you@example.com'
-    MAIL_PASSWORD = 'your_email_password'
